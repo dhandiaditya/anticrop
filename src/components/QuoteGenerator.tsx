@@ -238,7 +238,7 @@ export default function QuoteGenerator() {
               alignItems: 'center',
               justifyContent: 'center'
             }}>
-              "{generatedState.text}"
+              {`"${generatedState.text}"`}
             </div>
 
             {/* Profile Info */}
@@ -283,7 +283,7 @@ export default function QuoteGenerator() {
               <circle cx="8.5" cy="8.5" r="1.5" />
               <polyline points="21 15 16 10 5 21" />
             </svg>
-            <p>Enter a quote and click "Enhance & Generate"</p>
+            <p>Enter a quote and click &quot;Enhance &amp; Generate&quot;</p>
           </div>
         )}
       </div>
