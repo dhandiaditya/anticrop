@@ -2,7 +2,6 @@
 
 import React, { useState, useRef } from 'react';
 import * as htmlToImage from 'html-to-image';
-import { checkGrammar, fetchImageAsBase64 } from '@/app/actions';
 
 const VerifiedBadge = () => (
   <div style={{ 
@@ -41,12 +40,38 @@ export default function QuoteGenerator() {
     if (!quote) return;
     setLoading(true);
     try {
-      // Use Server Action to avoid Turnstile issues on client
-      const correctedText = await checkGrammar(quote);
+      // 1. Text Grammar Check (Client Side with CORS proxy fallback if needed, but Pollinations text usually works directly if Turnstile isn't aggressive, or we fallback)
+      let correctedText = quote;
+      try {
+        const textPrompt = `Fix the grammar and spelling of this quote. Only return the corrected quote, no other text or explanation: "${quote}"`;
+        const textUrl = `https://corsproxy.io/?${encodeURIComponent(`https://text.pollinations.ai/prompt/${encodeURIComponent(textPrompt)}`)}`;
+        const textRes = await fetch(textUrl);
+        if (textRes.ok) {
+          const rawText = await textRes.text();
+          correctedText = rawText.replace(/^["']|["']$/g, '').trim();
+          if (correctedText.startsWith('{')) correctedText = quote; // fallback if JSON error
+        }
+      } catch (e) {
+        console.warn("Text generation failed, using original quote", e);
+      }
 
-      // Generate Background Image directly using Server Action to get Base64 (solves CORS and output: export issues)
+      // 2. Generate Background Image (Client Side via CORS proxy to allow canvas html-to-image)
       const imagePrompt = `${theme} abstract background, atmospheric, no text, empty center, aesthetic`;
-      const base64Url = await fetchImageAsBase64(imagePrompt);
+      const directBgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=1080&height=1080&nologo=true&seed=${Math.floor(Math.random() * 10000)}`;
+      const proxyBgUrl = `https://corsproxy.io/?${encodeURIComponent(directBgUrl)}`;
+      
+      const res = await fetch(proxyBgUrl);
+      if (!res.ok) {
+        throw new Error("Failed to fetch generated image through proxy");
+      }
+      
+      const blob = await res.blob();
+      const base64Url = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
       
       setGeneratedState({
         text: correctedText,
